@@ -92,12 +92,36 @@ class exports.LayerStates extends BaseClass
 			@emit Events.StateDidSwitch, _.last(@_previousStates), stateName, @
 
 	switchInstant: (stateName) ->
-		# Instantly switch to this new state
-		# TODO: this is not good because we need to be able to get 
-		# the next state immediately after calling this
-		@switch stateName,
-			curve: "linear"
-			time: 0
+		if stateName is @_currentState
+			return
+
+		if not @_states.hasOwnProperty stateName
+			throw Error "No such state: '#{stateName}'"
+
+		@emit Events.StateWillSwitch, @_currentState, stateName, @
+
+		@_previousStates.push @_currentState
+		@_currentState = stateName
+
+		changedProperties = {}
+		animatingKeys = @animatingKeys()
+
+		for k, v of @_states[stateName]
+
+			# Don't animate ignored properties
+			if k in LayerStatesIgnoredKeys
+				continue
+
+			if k not in animatingKeys
+				continue
+
+			# Allow dynamic properties as functions
+			v = v.call(@layer, @layer, stateName) if _.isFunction(v)
+
+			@layer[k] = v
+
+		@emit Events.StateDidSwitch, _.last(@_previousStates), stateName, @
+
 
 	@define "state",
 		get: -> @_currentState
